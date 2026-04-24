@@ -1,0 +1,498 @@
+{
+  "info": {
+    "_postman_id": "belo-challenge-2026-04-24",
+    "name": "Belo Challenge — Mini Plataforma Fintech",
+    "description": "Collection completa de endpoints. Corre en orden: Setup > Happy Path > Edge Cases.\n\nVariables:\n- baseUrl (default http://localhost:3001)\n- aliceId, bobId, carolId (poblados por los requests de Setup)\n- pendingTxId (poblado por 'Create pending transaction')",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3001" },
+    { "key": "aliceId", "value": "" },
+    { "key": "bobId", "value": "" },
+    { "key": "carolId", "value": "" },
+    { "key": "pendingTxId", "value": "" },
+    { "key": "lastConfirmedTxId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/health"
+      }
+    },
+    {
+      "name": "0 · Setup",
+      "item": [
+        {
+          "name": "Create Alice (balance 100k)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('aliceId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Alice Postman\",\n  \"email\": \"alice-{{$timestamp}}@demo.com\",\n  \"initialBalance\": \"100000.00\"\n}"
+            },
+            "url": "{{baseUrl}}/api/users"
+          }
+        },
+        {
+          "name": "Create Bob (balance 50k)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('bobId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bob Postman\",\n  \"email\": \"bob-{{$timestamp}}@demo.com\",\n  \"initialBalance\": \"50000.00\"\n}"
+            },
+            "url": "{{baseUrl}}/api/users"
+          }
+        },
+        {
+          "name": "Create Carol (balance 0)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('carolId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Carol Postman\",\n  \"email\": \"carol-{{$timestamp}}@demo.com\",\n  \"initialBalance\": \"0.00\"\n}"
+            },
+            "url": "{{baseUrl}}/api/users"
+          }
+        },
+        {
+          "name": "Get Alice (verify balance)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/users/{{aliceId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "1 · Happy Path",
+      "item": [
+        {
+          "name": "Create tx auto-confirm (amount <= 50k)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 created', () => pm.response.to.have.status(201));",
+                  "const b = pm.response.json();",
+                  "pm.test('status=confirmed', () => pm.expect(b.status).to.eql('confirmed'));",
+                  "pm.test('confirmedAt set', () => pm.expect(b.confirmedAt).to.not.be.null);",
+                  "pm.collectionVariables.set('lastConfirmedTxId', b.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-id", "value": "{{aliceId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromUserId\": \"{{aliceId}}\",\n  \"toUserId\": \"{{bobId}}\",\n  \"amount\": \"1500.50\",\n  \"idempotencyKey\": \"postman-happy-{{$timestamp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/transactions"
+          }
+        },
+        {
+          "name": "Create tx pending (amount > 50k)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 created', () => pm.response.to.have.status(201));",
+                  "const b = pm.response.json();",
+                  "pm.test('status=pending', () => pm.expect(b.status).to.eql('pending'));",
+                  "pm.test('confirmedAt null', () => pm.expect(b.confirmedAt).to.be.null);",
+                  "pm.collectionVariables.set('pendingTxId', b.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-id", "value": "{{aliceId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromUserId\": \"{{aliceId}}\",\n  \"toUserId\": \"{{bobId}}\",\n  \"amount\": \"75000.00\",\n  \"idempotencyKey\": \"postman-pending-{{$timestamp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/transactions"
+          }
+        },
+        {
+          "name": "Idempotency retry (same key → 200 with original)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK (not 201)', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-id", "value": "{{aliceId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromUserId\": \"{{aliceId}}\",\n  \"toUserId\": \"{{bobId}}\",\n  \"amount\": \"1500.50\",\n  \"idempotencyKey\": \"postman-idempotency-fixed\"\n}"
+            },
+            "url": "{{baseUrl}}/api/transactions"
+          }
+        },
+        {
+          "name": "Idempotency retry (replay same fixed key)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK (second time, idempotent)', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-id", "value": "{{aliceId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromUserId\": \"{{aliceId}}\",\n  \"toUserId\": \"{{bobId}}\",\n  \"amount\": \"1500.50\",\n  \"idempotencyKey\": \"postman-idempotency-fixed\"\n}"
+            },
+            "url": "{{baseUrl}}/api/transactions"
+          }
+        },
+        {
+          "name": "Approve pending tx",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status=confirmed', () => pm.expect(pm.response.json().status).to.eql('confirmed'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "x-user-id", "value": "{{aliceId}}" }],
+            "url": "{{baseUrl}}/api/transactions/{{pendingTxId}}/approve"
+          }
+        },
+        {
+          "name": "List Alice's transactions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-user-id", "value": "{{aliceId}}" }],
+            "url": "{{baseUrl}}/api/transactions?userId={{aliceId}}&limit=10"
+          }
+        },
+        {
+          "name": "Get transaction by id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-user-id", "value": "{{aliceId}}" }],
+            "url": "{{baseUrl}}/api/transactions/{{lastConfirmedTxId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 · Reject flow",
+      "item": [
+        {
+          "name": "Create pending to reject",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set('pendingTxId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-id", "value": "{{aliceId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromUserId\": \"{{aliceId}}\",\n  \"toUserId\": \"{{bobId}}\",\n  \"amount\": \"80000.00\",\n  \"idempotencyKey\": \"postman-reject-{{$timestamp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/transactions"
+          }
+        },
+        {
+          "name": "Reject pending",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status=rejected', () => pm.expect(pm.response.json().status).to.eql('rejected'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "x-user-id", "value": "{{aliceId}}" }],
+            "url": "{{baseUrl}}/api/transactions/{{pendingTxId}}/reject"
+          }
+        },
+        {
+          "name": "Approve rejected → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('409 conflict', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "x-user-id", "value": "{{aliceId}}" }],
+            "url": "{{baseUrl}}/api/transactions/{{pendingTxId}}/approve"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 · Edge Cases (errors)",
+      "item": [
+        {
+          "name": "Insufficient funds (Carol → Bob) → 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422', () => pm.response.to.have.status(422));",
+                  "pm.test('INSUFFICIENT_FUNDS', () => pm.expect(pm.response.json().error).to.eql('INSUFFICIENT_FUNDS'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-id", "value": "{{carolId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromUserId\": \"{{carolId}}\",\n  \"toUserId\": \"{{bobId}}\",\n  \"amount\": \"100.00\",\n  \"idempotencyKey\": \"edge-insuff-{{$timestamp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/transactions"
+          }
+        },
+        {
+          "name": "Same user → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('SAME_USER', () => pm.expect(pm.response.json().error).to.eql('SAME_USER'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-id", "value": "{{aliceId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromUserId\": \"{{aliceId}}\",\n  \"toUserId\": \"{{aliceId}}\",\n  \"amount\": \"10\",\n  \"idempotencyKey\": \"edge-same-{{$timestamp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/transactions"
+          }
+        },
+        {
+          "name": "Zero amount → 400 INVALID_AMOUNT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('INVALID_AMOUNT', () => pm.expect(pm.response.json().error).to.eql('INVALID_AMOUNT'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-id", "value": "{{aliceId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromUserId\": \"{{aliceId}}\",\n  \"toUserId\": \"{{bobId}}\",\n  \"amount\": \"0\",\n  \"idempotencyKey\": \"edge-zero-{{$timestamp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/transactions"
+          }
+        },
+        {
+          "name": "Negative amount (schema) → 400 VALIDATION_ERROR",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('VALIDATION_ERROR', () => pm.expect(pm.response.json().error).to.eql('VALIDATION_ERROR'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-id", "value": "{{aliceId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromUserId\": \"{{aliceId}}\",\n  \"toUserId\": \"{{bobId}}\",\n  \"amount\": \"-100\",\n  \"idempotencyKey\": \"edge-neg-{{$timestamp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/transactions"
+          }
+        },
+        {
+          "name": "User not found → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));",
+                  "pm.test('USER_NOT_FOUND', () => pm.expect(pm.response.json().error).to.eql('USER_NOT_FOUND'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-id", "value": "{{aliceId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromUserId\": \"00000000-0000-0000-0000-000000000000\",\n  \"toUserId\": \"{{bobId}}\",\n  \"amount\": \"100\",\n  \"idempotencyKey\": \"edge-nouser-{{$timestamp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/transactions"
+          }
+        },
+        {
+          "name": "Missing x-user-id → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401', () => pm.response.to.have.status(401));",
+                  "pm.test('UNAUTHORIZED', () => pm.expect(pm.response.json().error).to.eql('UNAUTHORIZED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromUserId\": \"{{aliceId}}\",\n  \"toUserId\": \"{{bobId}}\",\n  \"amount\": \"100\",\n  \"idempotencyKey\": \"edge-noauth-{{$timestamp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/transactions"
+          }
+        },
+        {
+          "name": "Approve non-existent → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));",
+                  "pm.test('TRANSACTION_NOT_FOUND', () => pm.expect(pm.response.json().error).to.eql('TRANSACTION_NOT_FOUND'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "x-user-id", "value": "{{aliceId}}" }],
+            "url": "{{baseUrl}}/api/transactions/00000000-0000-0000-0000-000000000000/approve"
+          }
+        }
+      ]
+    }
+  ]
+}

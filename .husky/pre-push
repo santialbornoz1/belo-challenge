@@ -1,0 +1,3 @@
+echo "[husky] pre-push: typecheck + tests"
+npx tsc --noEmit || exit 1
+npm test || exit 1
